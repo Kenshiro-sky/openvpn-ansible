@@ -1,0 +1,193 @@
+ 
+    - name: run apt-get update and install python
+      raw: "{{ item }}"
+      loop:
+        - sudo apt-get update
+      become: true
+      ignore_errors: true
+
+
+    - name: Install python3
+      apt:
+        name: python3
+        state: present
+
+    - name: Install openvpn
+      apt:
+        name: openvpn
+        state: present
+
+    - name: Recursively remove directory
+      file:
+        path: /opt/Aptonworks_PKI
+        state: absent
+
+    - name: Create a directory Aptonworks_PKI if it does not exist
+      file:
+        path: /opt/Aptonworks_PKI
+        state: directory
+        
+    - name: Create a directory CA if it does not exist
+      file:
+        path: /opt/Aptonworks_PKI/CA
+        state: directory
+        
+    - name: Create a directory Server if it does not exist
+      file:
+        path: /opt/Aptonworks_PKI/Server
+        state: directory
+        
+    - name: Create a directory OVPN if it does not exist
+      file:
+        path: /opt/Aptonworks_PKI/OVPN
+        state: directory
+
+         # - name: Unarchive a file that needs to be downloaded (added in 2.0)
+         #   ansible.builtin.unarchive:
+         #   src: https://example.com/example.zip
+         #   dest: /usr/local/bin
+         #   remote_src: yes
+    
+    - name: Download EasyRsa zip file
+      become: true
+      get_url:
+        url: https://github.com/OpenVPN/easy-rsa/releases/download/v3.0.8/EasyRSA-3.0.8.tgz
+        dest: /home
+        
+
+    - name: Extract to CA directory
+      unarchive:
+        src: /home/EasyRSA-3.0.8.tgz
+        dest: /opt/Aptonworks_PKI/CA
+        remote_src: yes
+
+    - name: Extract to Server directory
+      unarchive:
+        src: /home/EasyRSA-3.0.8.tgz
+        dest: /opt/Aptonworks_PKI/Server
+        remote_src: yes
+
+    - name: Create a directory etc/openvpn/ if it does not exist
+      file:
+        path: /etc/openvpn/
+        state: directory      
+    
+    - name: Copy file local to remote
+      copy:
+        src: /home/aswin/operations/Ansiable-openvpn-setup/gen_ca.sh
+        dest: /opt/Aptonworks_PKI/CA/
+
+    - name: Execute the script gen_ca
+      command: "bash /opt/Aptonworks_PKI/CA/gen_ca.sh | exec echo -e 'Aptonworks\n'"
+    # - debug:
+    #     msg: "{{ output }}"      
+     
+    # - name: Run the script gen_ca
+    #   become: true
+    #   become_user: root
+    #   become_method: sudo
+    #   expect:
+    #     timeout: 60
+    #     #echo: yes
+    #     #chdir: "{{ /opt/Aptonworks_PKI/CA }}"
+    #     command: "bash /opt/Aptonworks_PKI/CA/gen_ca.sh"
+    #     responses:
+    #       'Common Name (eg: your user, host, or server name) [Easy-RSA CA]': 'Aptonworks'
+    #   register: prompt
+      
+
+    - name: Copy file local to remote
+      copy:
+        src: /home/aswin/operations/Ansiable-openvpn-setup/gen-server-cert.sh
+        dest: /opt/Aptonworks_PKI/Server/
+    
+    - name: Execute the script gen_server-cert
+      become: true
+      command: "sudo bash /opt/Aptonworks_PKI/Server/gen-server-cert.sh"
+      register: output
+    - debug:
+        msg: "{{ output }}"
+      ignore_errors: true
+
+    - name: create file ovpn.conf
+      become: true
+      file:
+        path: /opt/Aptonworks_PKI/OVPN/ovpn.conf
+        state: touch
+        mode: u+rwx,g-rwx,o-rwx
+
+    - name: "seting up ovpn.conf file"
+      lineinfile:
+        dest: /opt/Aptonworks_PKI/OVPN/ovpn.conf
+        line: "{{ item }}"
+      with_items:
+        - 'client'
+        - 'dev tun'
+        - 'proto udp'
+        - 'remote {{server_public_ip}} 1194' 
+        - 'resolv-retry infinite'
+        - 'nobind'
+        - 'persist-key'
+        - 'persist-tun'
+        - 'remote-cert-tls server'
+        - 'cipher AES-256-GCM'
+        - 'auth SHA256'
+        - 'verb 3'
+        - 'key-direction 1'
+
+    # - name: Copy file local to remote
+    #   copy:
+    #     src: /home/aswin/operations/Ansiable-openvpn-2/ovpn.conf
+    #     dest: /opt/Aptonworks_PKI/OVPN/   
+
+    - name: create file server.conf
+      become: true
+      file:
+        path: /etc/openvpn/server.conf
+        state: touch
+        mode: u+rwx,g-rwx,o-rwx    
+
+    - name: "seting up server.conf file"
+      lineinfile:
+        dest: /etc/openvpn/server.conf 
+        line: "{{ item }}"
+      with_items:
+        - 'port 1194'
+        - 'proto udp'
+        - 'dev tun'
+        - 'ca ca.crt'
+        - 'duplicate-cn' 
+        - 'cert server.crt'
+        - 'key server.key'
+        - 'dh dh2048.pem'
+        - 'server {{server_ip_ranges}}'
+        - 'push "{{push_route}}" '
+        - 'ifconfig-pool-persist /var/log/openvpn/ipp.txt'
+        - 'push "inactive 3600 1000000" '
+        - 'keepalive 10 120 '
+        - 'tls-auth ta.key 0 # This file is secret'
+        - 'cipher AES-256-GCM'
+        - 'auth SHA256'
+        - 'user nobody'
+        - 'group nogroup'
+        - 'persist-key'
+        - 'persist-tun'
+        - 'status /var/log/openvpn/openvpn-status.log'
+        - 'log-append  /var/log/openvpn/openvpn.log'
+        - 'verb 3'
+        - 'explicit-exit-notify 1'
+
+    # - name: Copy file local to remote
+    #   copy:
+    #     src: /home/aswin/operations/Ansiable-openvpn-2/server.conf
+    #     dest: /etc/openvpn/
+    
+    
+
+    - name: restart open vpn
+      become: true
+      shell: systemctl restart openvpn
+
+    - name: start open vpn@server
+      become: true
+      shell: systemctl start openvpn@server

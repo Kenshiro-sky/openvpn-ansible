@@ -1,0 +1,9 @@
+---
+- name: user revoke
+  hosts: vpn-server
+  gather_facts: false
+  become: true
+  become_user: root
+  become_method: sudo
+  roles:
+    - revoke

@@ -1,0 +1,12 @@
+
+    - name: change the working directory to PKI/OVPN
+      shell: cd /opt/Aptonworks_PKI/OVPN
+
+    - name: Copy file local to remote
+      copy:
+        src: /home/aswin/operations/Ansiable-openvpn-setup/userrevoke.sh
+        dest: /opt/Aptonworks_PKI/OVPN/
+
+    - name: Execute the script userrevoke sh
+      command: bash /opt/Aptonworks_PKI/OVPN/userrevoke.sh {{user_name}}
+

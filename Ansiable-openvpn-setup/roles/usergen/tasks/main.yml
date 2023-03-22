@@ -1,0 +1,19 @@
+
+    - name: Copy file local to remote
+      copy:
+        src: /home/aswin/operations/Ansiable-openvpn-setup/usergen.sh
+        dest: /opt/Aptonworks_PKI/OVPN/
+
+    - name: Execute the script usergen sh
+      become: true
+      become_user: root
+      become_method: sudo
+      command: bash /opt/Aptonworks_PKI/OVPN/usergen.sh {{user_name}}
+
+    - name: Fetch client configurations
+      fetch:
+        src: "/opt/Aptonworks_PKI/OVPN/User_VPN_Profile/{{user_name}}.ovpn"
+        dest: "$home/open-usr/"
+        flat: yes
+      with_items:
+        - "{{user_name}}.ovpn"    
